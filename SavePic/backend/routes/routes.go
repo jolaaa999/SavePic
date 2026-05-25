@@ -3,16 +3,18 @@ package routes
 import (
 	"os"
 
-	"savepic/handlers"
+	"savepic/backend/handlers"
+	"savepic/backend/storage"
 
 	"github.com/gin-gonic/gin"
 )
 
 // Setup 注册所有路由
 func Setup(r *gin.Engine) {
-	_ = os.MkdirAll("uploads", 0755)
-
-	r.Static("/uploads", "./uploads")
+	if storage.IsLocal() {
+		_ = os.MkdirAll("uploads", 0755)
+		r.Static("/uploads", "./uploads")
+	}
 
 	api := r.Group("/api")
 	{

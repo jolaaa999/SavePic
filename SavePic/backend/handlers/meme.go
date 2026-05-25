@@ -7,9 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"savepic/database"
-	"savepic/internal/imgutil"
-	"savepic/models"
+	"savepic/backend/database"
+	"savepic/backend/internal/imgutil"
+	"savepic/backend/models"
+	"savepic/backend/storage"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -96,31 +97,27 @@ func UploadMeme(c *gin.Context) {
 		fileSize = info.Size()
 	}
 
-	filename := uuid.New().String() + ext
-	savePath := filepath.Join("uploads", filename)
-	if err := os.Rename(tmpPath, savePath); err != nil {
-		// Windows 跨盘符时 Rename 可能失败，回退为复制
-		data, readErr := os.ReadFile(tmpPath)
-		if readErr != nil {
-			fail(c, http.StatusInternalServerError, 500, "保存文件失败")
-			return
-		}
-		if writeErr := os.WriteFile(savePath, data, 0644); writeErr != nil {
-			fail(c, http.StatusInternalServerError, 500, "保存文件失败")
-			return
-		}
+	data, readErr := os.ReadFile(tmpPath)
+	if readErr != nil {
+		fail(c, http.StatusInternalServerError, 500, "读取文件失败")
+		return
+	}
+	fileURL, saveErr := storage.Save(data, ext)
+	if saveErr != nil {
+		fail(c, http.StatusInternalServerError, 500, "保存文件失败")
+		return
 	}
 
 	meme := models.Meme{
 		CategoryID: uint(categoryID),
-		FileURL:    "/uploads/" + filename,
+		FileURL:    fileURL,
 		FileHash:   fileHash,
 		Width:      width,
 		Height:     height,
 		Size:       fileSize,
 	}
 	if err := database.DB.Create(&meme).Error; err != nil {
-		_ = os.Remove(savePath)
+		_ = storage.Delete(fileURL)
 		fail(c, http.StatusInternalServerError, 500, "保存记录失败")
 		return
 	}
@@ -241,9 +238,7 @@ func DeleteMeme(c *gin.Context) {
 		return
 	}
 
-	if strings.HasPrefix(meme.FileURL, "/uploads/") {
-		_ = os.Remove(filepath.Join(".", meme.FileURL))
-	}
+	_ = storage.Delete(meme.FileURL)
 
 	_ = database.DB.Model(&meme).Association("Tags").Clear()
 	if err := database.DB.Delete(&meme).Error; err != nil {

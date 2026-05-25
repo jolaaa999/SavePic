@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"savepic/database"
-	"savepic/models"
+	"savepic/backend/database"
+	"savepic/backend/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
