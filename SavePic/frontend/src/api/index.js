@@ -33,6 +33,15 @@ export function updateCategory(id, payload) {
   })
 }
 
+/** @param {number[]} ids 按新顺序排列的分类 ID */
+export function reorderCategories(ids) {
+  return request('/api/categories/reorder', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  })
+}
+
 export function fetchTags() {
   return request('/api/tags')
 }

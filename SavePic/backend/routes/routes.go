@@ -20,6 +20,7 @@ func Setup(r *gin.Engine) {
 	{
 		api.GET("/categories", handlers.ListCategories)
 		api.POST("/categories", handlers.CreateCategory)
+		api.PUT("/categories/reorder", handlers.ReorderCategories)
 		api.PUT("/categories/:id", handlers.UpdateCategory)
 		api.DELETE("/categories/:id", handlers.DeleteCategory)
 

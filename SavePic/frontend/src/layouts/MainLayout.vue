@@ -7,6 +7,7 @@ import {
   fetchCategories,
   fetchMemes,
   fetchTags,
+  reorderCategories,
   updateCategory,
   updateTag,
   deleteTag,
@@ -32,6 +33,7 @@ const sortOrder = ref('desc')
 const uploadTagsText = ref('')
 
 const loadingCategories = ref(true)
+const reorderingCategories = ref(false)
 const loadingTags = ref(true)
 const loadingMemes = ref(false)
 const globalError = ref('')
@@ -164,6 +166,30 @@ async function onDeleteCategory(cat) {
   }
 }
 
+async function onReorderCategories(ids) {
+  const previous = [...categoryList.value]
+  const map = new Map(categoryList.value.map((cat) => [cat.id, cat]))
+  categoryList.value = ids
+    .map((id, index) => {
+      const cat = map.get(id)
+      return cat ? { ...cat, sort_order: index } : null
+    })
+    .filter(Boolean)
+
+  reorderingCategories.value = true
+  try {
+    await reorderCategories(ids)
+    globalMessage.value = '分类顺序已更新'
+    setTimeout(() => (globalMessage.value = ''), 2000)
+  } catch (e) {
+    categoryList.value = previous
+    globalError.value = e.message
+    setTimeout(() => (globalError.value = ''), 3000)
+  } finally {
+    reorderingCategories.value = false
+  }
+}
+
 async function onUploaded({ count, duplicateCount }) {
   await Promise.all([loadMemes(), loadCategories(), loadTags()])
   if (duplicateCount > 0) {
@@ -282,10 +308,12 @@ watch([selectedCategoryId, selectedTagIds, sortOrder], () => {
       :categories="categoryList"
       :selected-id="selectedCategoryId"
       :loading="loadingCategories"
+      :reordering="reorderingCategories"
       @select="selectCategory"
       @new-category="onNewCategory"
       @rename-category="onRenameCategory"
       @delete-category="onDeleteCategory"
+      @reorder-categories="onReorderCategories"
     />
 
     <main

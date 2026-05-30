@@ -1,11 +1,17 @@
 <script setup>
-defineProps({
+import { ref } from 'vue'
+
+const props = defineProps({
   categories: { type: Array, required: true },
   selectedId: { type: Number, default: null },
   loading: { type: Boolean, default: false },
+  reordering: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['select', 'new-category', 'delete-category', 'rename-category'])
+const emit = defineEmits(['select', 'new-category', 'delete-category', 'rename-category', 'reorder-categories'])
+
+const draggingId = ref(null)
+const dragOverId = ref(null)
 
 /**
  * @param {MouseEvent} e
@@ -23,6 +29,53 @@ function onDeleteClick(e, cat) {
 function onRenameClick(e, cat) {
   e.stopPropagation()
   emit('rename-category', cat)
+}
+
+/** @param {DragEvent} e @param {{ id: number }} cat */
+function onDragStart(e, cat) {
+  if (props.reordering) {
+    e.preventDefault()
+    return
+  }
+  draggingId.value = cat.id
+  dragOverId.value = cat.id
+  e.dataTransfer?.setData('text/plain', String(cat.id))
+  if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+}
+
+function onDragEnd() {
+  draggingId.value = null
+  dragOverId.value = null
+}
+
+/** @param {DragEvent} e @param {{ id: number }} cat */
+function onDragOver(e, cat) {
+  if (!draggingId.value || draggingId.value === cat.id) return
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+  dragOverId.value = cat.id
+}
+
+/** @param {{ id: number }} cat */
+function onDragLeave(cat) {
+  if (dragOverId.value === cat.id) dragOverId.value = null
+}
+
+/** @param {DragEvent} e @param {{ id: number }} cat */
+function onDrop(e, cat) {
+  e.preventDefault()
+  const fromId = draggingId.value
+  onDragEnd()
+  if (!fromId || fromId === cat.id) return
+
+  const ids = props.categories.map((c) => c.id)
+  const fromIndex = ids.indexOf(fromId)
+  const toIndex = ids.indexOf(cat.id)
+  if (fromIndex < 0 || toIndex < 0) return
+
+  ids.splice(fromIndex, 1)
+  ids.splice(toIndex, 0, fromId)
+  emit('reorder-categories', ids)
 }
 </script>
 
@@ -43,9 +96,10 @@ function onRenameClick(e, cat) {
       </div>
     </div>
 
-    <p class="px-5 pb-2 text-[10px] font-medium uppercase tracking-widest text-zinc-600">
-      分类
-    </p>
+    <div class="flex items-center justify-between px-5 pb-2">
+      <p class="text-[10px] font-medium uppercase tracking-widest text-zinc-600">分类</p>
+      <p v-if="categories.length > 1" class="text-[10px] text-zinc-600">拖动排序</p>
+    </div>
 
     <!-- 分类列表 -->
     <nav class="flex-1 space-y-0.5 overflow-y-auto px-3">
@@ -57,15 +111,47 @@ function onRenameClick(e, cat) {
         v-for="cat in categories"
         :key="cat.id"
         type="button"
-        class="group flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left transition-all duration-150"
-        :class="
+        class="group flex w-full items-center rounded-lg px-2 py-2.5 text-left transition-all duration-150"
+        :class="[
           selectedId === cat.id
             ? 'bg-[var(--color-accent-muted)] text-zinc-100'
-            : 'text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300'
-        "
+            : 'text-zinc-500 hover:bg-white/[0.03] hover:text-zinc-300',
+          draggingId === cat.id ? 'opacity-40' : '',
+          dragOverId === cat.id && draggingId !== cat.id
+            ? 'ring-1 ring-inset ring-[var(--color-accent)]/40'
+            : '',
+        ]"
         @click="$emit('select', cat.id)"
+        @dragover="onDragOver($event, cat)"
+        @dragleave="onDragLeave(cat)"
+        @drop="onDrop($event, cat)"
       >
-        <span class="truncate text-sm font-medium">{{ cat.name }}</span>
+        <span
+          v-if="categories.length > 1"
+          draggable="true"
+          class="mr-1.5 flex shrink-0 cursor-grab touch-none rounded p-1 text-zinc-600 opacity-0 transition-all hover:bg-white/10 hover:text-zinc-400 active:cursor-grabbing group-hover:opacity-100"
+          :class="[
+            selectedId === cat.id ? 'opacity-100' : '',
+            reordering ? 'pointer-events-none opacity-30' : '',
+          ]"
+          title="拖动排序"
+          aria-label="拖动排序"
+          @click.stop
+          @dragstart="onDragStart($event, cat)"
+          @dragend="onDragEnd"
+        >
+          <svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="9" cy="7" r="1.4" />
+            <circle cx="15" cy="7" r="1.4" />
+            <circle cx="9" cy="12" r="1.4" />
+            <circle cx="15" cy="12" r="1.4" />
+            <circle cx="9" cy="17" r="1.4" />
+            <circle cx="15" cy="17" r="1.4" />
+          </svg>
+        </span>
+
+        <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ cat.name }}</span>
+
         <span class="ml-2 flex shrink-0 items-center gap-1">
           <span
             class="rounded-md px-1.5 py-0.5 text-[10px] tabular-nums transition-colors"

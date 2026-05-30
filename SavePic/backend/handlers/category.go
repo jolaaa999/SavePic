@@ -121,6 +121,50 @@ func UpdateCategory(c *gin.Context) {
 	success(c, category)
 }
 
+type reorderCategoriesRequest struct {
+	IDs []uint `json:"ids" binding:"required,min=1"`
+}
+
+// ReorderCategories 批量更新分类排序
+func ReorderCategories(c *gin.Context) {
+	var req reorderCategoriesRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, http.StatusBadRequest, 400, "参数无效")
+		return
+	}
+
+	var count int64
+	if err := database.DB.Model(&models.Category{}).Count(&count).Error; err != nil {
+		fail(c, http.StatusInternalServerError, 500, "查询分类失败")
+		return
+	}
+	if int(count) != len(req.IDs) {
+		fail(c, http.StatusBadRequest, 400, "分类列表不完整")
+		return
+	}
+
+	tx := database.DB.Begin()
+	for i, id := range req.IDs {
+		result := tx.Model(&models.Category{}).Where("id = ?", id).Update("sort_order", i)
+		if result.Error != nil {
+			tx.Rollback()
+			fail(c, http.StatusInternalServerError, 500, "更新排序失败")
+			return
+		}
+		if result.RowsAffected == 0 {
+			tx.Rollback()
+			fail(c, http.StatusBadRequest, 400, "分类不存在")
+			return
+		}
+	}
+	if err := tx.Commit().Error; err != nil {
+		fail(c, http.StatusInternalServerError, 500, "更新排序失败")
+		return
+	}
+
+	success(c, nil)
+}
+
 // DeleteCategory 删除分类及其下所有表情包
 func DeleteCategory(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
