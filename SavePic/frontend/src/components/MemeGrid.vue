@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { resolveFileUrl, updateMeme } from '../api'
 import MemeWaterfall from './MemeWaterfall.vue'
+import MemePreview from './MemePreview.vue'
 
 defineProps({
   memes: { type: Array, default: () => [] },
@@ -11,6 +12,7 @@ defineProps({
 const emit = defineEmits(['delete', 'updated'])
 
 const toast = ref('')
+const previewMeme = ref(null)
 let toastTimer = null
 
 function showToast(msg) {
@@ -71,7 +73,10 @@ async function onEditTags(meme) {
       @copy="onCopy"
       @delete="onDelete"
       @edit-tags="onEditTags"
+      @preview="previewMeme = $event"
     />
+
+    <MemePreview :meme="previewMeme" @close="previewMeme = null" />
   </div>
 </template>
 

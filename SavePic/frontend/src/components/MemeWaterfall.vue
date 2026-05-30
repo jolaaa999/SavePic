@@ -31,7 +31,7 @@ const props = defineProps({
   emptyHint: { type: String, default: '试试调整标签筛选或上传新图片' },
 })
 
-const emit = defineEmits(['copy', 'delete', 'edit-tags'])
+const emit = defineEmits(['copy', 'delete', 'edit-tags', 'preview'])
 
 const containerRef = ref(null)
 const memesRef = toRef(props, 'memes')
@@ -117,16 +117,17 @@ function formatDate(iso) {
               :alt="`meme-${meme.id}`"
               :width="meme.width || undefined"
               :height="meme.height || undefined"
-              class="absolute inset-0 h-full w-full object-cover"
+              class="absolute inset-0 h-full w-full cursor-zoom-in object-cover"
               loading="lazy"
               decoding="async"
+              @click="emit('preview', meme)"
             />
 
             <slot name="actions" :meme="meme">
               <div
-                class="absolute inset-0 flex flex-col items-center justify-end gap-1.5 bg-gradient-to-t from-black/80 via-black/25 to-transparent p-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:p-3"
+                class="pointer-events-none absolute inset-0 flex flex-col items-center justify-end gap-1.5 bg-gradient-to-t from-black/80 via-black/25 to-transparent p-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:p-3"
               >
-                <div class="flex flex-wrap justify-center gap-1.5">
+                <div class="pointer-events-auto flex flex-wrap justify-center gap-1.5">
                   <button
                     type="button"
                     class="rounded-lg bg-white/10 px-2 py-1 text-[11px] text-zinc-200 backdrop-blur-sm md:hover:bg-white/20"
