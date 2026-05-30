@@ -45,6 +45,10 @@ export function updateTag(id, payload) {
   })
 }
 
+export function deleteTag(id) {
+  return request(`/api/tags/${id}`, { method: 'DELETE' })
+}
+
 /** @param {{ categoryId?: number, tagIds?: number[], sort?: string }} params */
 export function fetchMemes(params = {}) {
   const q = new URLSearchParams()

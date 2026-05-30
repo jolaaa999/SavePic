@@ -92,6 +92,32 @@ func UpdateTag(c *gin.Context) {
 	success(c, tag)
 }
 
+// DeleteTag 删除标签并解除与所有表情包的关联
+func DeleteTag(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		fail(c, http.StatusBadRequest, 400, "标签 ID 无效")
+		return
+	}
+
+	var tag models.Tag
+	if err := database.DB.First(&tag, id).Error; err != nil {
+		fail(c, http.StatusNotFound, 404, "标签不存在")
+		return
+	}
+
+	if err := database.DB.Model(&tag).Association("Memes").Clear(); err != nil {
+		fail(c, http.StatusInternalServerError, 500, "解除关联失败")
+		return
+	}
+	if err := database.DB.Delete(&tag).Error; err != nil {
+		fail(c, http.StatusInternalServerError, 500, "删除标签失败")
+		return
+	}
+
+	success(c, nil)
+}
+
 func normalizeTagNames(names []string) []string {
 	seen := make(map[string]bool)
 	out := make([]string, 0, len(names))

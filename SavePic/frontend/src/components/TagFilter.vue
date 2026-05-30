@@ -7,10 +7,12 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update:selectedIds', 'rename-tag'])
+const emit = defineEmits(['update:selectedIds', 'rename-tag', 'delete-tag'])
 
 const longPressTimer = ref(null)
 const longPressTriggered = ref(false)
+/** @type {import('vue').Ref<{ id: number, name: string, count?: number } | null>} */
+const menuTag = ref(null)
 
 function toggle(id) {
   if (longPressTriggered.value) {
@@ -30,13 +32,20 @@ function clearAll() {
   emit('update:selectedIds', [])
 }
 
-/** @param {{ id: number, name: string }} tag */
+/** @param {{ id: number, name: string, count?: number }} tag */
+function openMenu(tag) {
+  longPressTriggered.value = true
+  menuTag.value = tag
+}
+
+function closeMenu() {
+  menuTag.value = null
+}
+
+/** @param {{ id: number, name: string, count?: number }} tag */
 function startLongPress(tag) {
   clearLongPress()
-  longPressTimer.value = window.setTimeout(() => {
-    longPressTriggered.value = true
-    emit('rename-tag', tag)
-  }, 500)
+  longPressTimer.value = window.setTimeout(() => openMenu(tag), 500)
 }
 
 function clearLongPress() {
@@ -46,10 +55,22 @@ function clearLongPress() {
   }
 }
 
-/** @param {MouseEvent} e @param {{ id: number, name: string }} tag */
+/** @param {MouseEvent} e @param {{ id: number, name: string, count?: number }} tag */
 function onContextMenu(e, tag) {
   e.preventDefault()
-  emit('rename-tag', tag)
+  openMenu(tag)
+}
+
+function chooseRename() {
+  if (!menuTag.value) return
+  emit('rename-tag', menuTag.value)
+  closeMenu()
+}
+
+function chooseDelete() {
+  if (!menuTag.value) return
+  emit('delete-tag', menuTag.value)
+  closeMenu()
 }
 </script>
 
@@ -94,10 +115,72 @@ function onContextMenu(e, tag) {
     </div>
 
     <p v-if="tags.length && selectedIds.length" class="mt-1.5 text-[10px] text-zinc-600">
-      已选 {{ selectedIds.length }} 个标签（同时满足）· 长按或右键可重命名
+      已选 {{ selectedIds.length }} 个标签（同时满足）· 长按或右键可管理
     </p>
     <p v-else-if="tags.length" class="mt-1.5 text-[10px] text-zinc-600">
-      长按或右键标签可重命名
+      长按或右键标签可重命名 / 删除
     </p>
+
+    <Teleport to="body">
+      <Transition name="menu">
+        <div
+          v-if="menuTag"
+          class="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 md:items-center"
+          @click="closeMenu"
+        >
+          <div
+            class="w-full max-w-sm rounded-2xl border border-white/10 bg-[var(--color-surface-raised)] p-2 shadow-xl"
+            @click.stop
+          >
+            <p class="px-3 py-2 text-xs text-zinc-500">
+              #{{ menuTag.name }}
+              <span v-if="menuTag.count" class="ml-1 opacity-60">· {{ menuTag.count }} 张</span>
+            </p>
+            <button
+              type="button"
+              class="flex w-full rounded-xl px-3 py-3 text-left text-sm text-zinc-200 active:bg-white/[0.06]"
+              @click="chooseRename"
+            >
+              重命名
+            </button>
+            <button
+              type="button"
+              class="flex w-full rounded-xl px-3 py-3 text-left text-sm text-red-400 active:bg-red-500/10"
+              @click="chooseDelete"
+            >
+              删除标签
+            </button>
+            <button
+              type="button"
+              class="mt-1 flex w-full rounded-xl px-3 py-3 text-center text-sm text-zinc-500 active:bg-white/[0.06]"
+              @click="closeMenu"
+            >
+              取消
+            </button>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
+
+<style scoped>
+.menu-enter-active,
+.menu-leave-active {
+  transition: opacity 0.15s ease;
+}
+.menu-enter-active > div,
+.menu-leave-active > div {
+  transition: transform 0.15s ease;
+}
+.menu-enter-from,
+.menu-leave-to {
+  opacity: 0;
+}
+.menu-enter-from > div {
+  transform: translateY(1rem);
+}
+.menu-leave-to > div {
+  transform: translateY(0.5rem);
+}
+</style>

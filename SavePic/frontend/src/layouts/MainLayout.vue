@@ -9,6 +9,7 @@ import {
   fetchTags,
   updateCategory,
   updateTag,
+  deleteTag,
 } from '../api'
 import { useIsMobile } from '../composables/useBreakpoint'
 import Sidebar from '../components/Sidebar.vue'
@@ -197,6 +198,29 @@ async function onRenameTag(tag) {
   }
 }
 
+/**
+ * @param {{ id: number, name: string, count?: number }} tag
+ */
+async function onDeleteTag(tag) {
+  const count = tag.count ?? 0
+  const hint =
+    count > 0
+      ? `确定删除标签「${tag.name}」吗？将从 ${count} 张表情包中移除。`
+      : `确定删除标签「${tag.name}」吗？`
+  if (!confirm(hint)) return
+
+  try {
+    await deleteTag(tag.id)
+    selectedTagIds.value = selectedTagIds.value.filter((id) => id !== tag.id)
+    await Promise.all([loadTags(), loadMemes()])
+    globalMessage.value = '标签已删除'
+    setTimeout(() => (globalMessage.value = ''), 2000)
+  } catch (e) {
+    globalError.value = e.message
+    setTimeout(() => (globalError.value = ''), 3000)
+  }
+}
+
 async function onDeleteMeme(id) {
   try {
     await deleteMeme(id)
@@ -270,6 +294,7 @@ watch([selectedCategoryId, selectedTagIds, sortOrder], () => {
           :tags="tagList"
           :loading="loadingTags"
           @rename-tag="onRenameTag"
+          @delete-tag="onDeleteTag"
         />
 
         <div class="hidden shrink-0 px-6 pt-4 md:block">
