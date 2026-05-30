@@ -8,14 +8,17 @@ import (
 
 	"savepic/backend/app"
 	"savepic/backend/database"
+	"savepic/backend/sqlitedb"
 
 	"github.com/gin-gonic/gin"
 )
 
-// Run 启动 HTTP 服务（本地与 Vercel Go 运行时共用）
+// Run 启动 HTTP 服务（本地开发：Postgres 或 SQLite）
 func Run() {
 	if err := database.InitFromEnv(); err != nil {
-		panic(err)
+		if err := sqlitedb.InitFromEnv(); err != nil {
+			panic(err)
+		}
 	}
 
 	r := app.NewEngine()

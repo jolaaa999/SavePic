@@ -2,35 +2,44 @@ package database
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
 
 	"savepic/backend/models"
 
-	"github.com/glebarez/sqlite"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
 var DB *gorm.DB
 
-// InitFromEnv 优先使用 Postgres（Vercel），否则回退 SQLite（本地开发）
+/**
+ * InitFromEnv 连接 Postgres（Vercel 生产环境）。
+ * 本地开发若未配置 DATABASE_URL，由 server 包回退到 SQLite。
+ */
 func InitFromEnv() error {
-	if dsn := postgresDSN(); dsn != "" {
-		return initPostgres(dsn)
+	dsn := postgresDSN()
+	if dsn == "" {
+		return ErrPostgresRequired
 	}
-	dbPath := strings.TrimSpace(os.Getenv("SQLITE_PATH"))
-	if dbPath == "" {
-		dbPath = "data/savepic.db"
-	}
-	return InitSQLite(dbPath)
+	return initPostgres(dsn)
+}
+
+/** ErrPostgresRequired 未配置 Postgres 连接串 */
+var ErrPostgresRequired = &initError{msg: "未配置 DATABASE_URL 或 POSTGRES_URL"}
+
+type initError struct {
+	msg string
+}
+
+func (e *initError) Error() string {
+	return e.msg
 }
 
 func postgresDSN() string {
 	for _, key := range []string{
+		"POSTGRES_URL_NON_POOLING",
 		"DATABASE_URL",
 		"POSTGRES_URL",
-		"POSTGRES_URL_NON_POOLING",
 	} {
 		if v := strings.TrimSpace(os.Getenv(key)); v != "" {
 			return v
@@ -40,33 +49,29 @@ func postgresDSN() string {
 }
 
 func initPostgres(dsn string) error {
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  dsn,
+		PreferSimpleProtocol: true,
+	}), &gorm.Config{})
 	if err != nil {
 		return err
 	}
-	return migrate(db)
-}
 
-// InitSQLite 连接 SQLite 并自动迁移表结构
-func InitSQLite(dbPath string) error {
-	if dbPath == "" {
-		dbPath = "data/savepic.db"
-	}
-
-	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
-		return err
-	}
-
-	db, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
+	sqlDB, err := db.DB()
 	if err != nil {
 		return err
 	}
+	sqlDB.SetMaxOpenConns(2)
+	sqlDB.SetMaxIdleConns(1)
+
 	return migrate(db)
 }
 
-// Init 兼容旧调用，等价于 InitSQLite
-func Init(dbPath string) error {
-	return InitSQLite(dbPath)
+/**
+ * SetDB 供本地 SQLite 初始化后注入全局 DB 实例。
+ */
+func SetDB(db *gorm.DB) {
+	DB = db
 }
 
 func migrate(db *gorm.DB) error {
