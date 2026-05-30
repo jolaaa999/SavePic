@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"savepic/backend/routes"
+	"savepic/backend/storage"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,7 +13,7 @@ import (
 func NewEngine() *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()
-	r.Use(gin.Recovery(), corsMiddleware())
+	r.Use(gin.Recovery(), oidcMiddleware(), corsMiddleware())
 	routes.Setup(r)
 
 	r.GET("/health", func(c *gin.Context) {
@@ -24,6 +25,16 @@ func NewEngine() *gin.Engine {
 	})
 
 	return r
+}
+
+func oidcMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if token := c.GetHeader("x-vercel-oidc-token"); token != "" {
+			ctx := storage.WithOIDCToken(c.Request.Context(), token)
+			c.Request = c.Request.WithContext(ctx)
+		}
+		c.Next()
+	}
 }
 
 func corsMiddleware() gin.HandlerFunc {

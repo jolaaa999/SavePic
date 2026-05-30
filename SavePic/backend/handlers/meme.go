@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -102,7 +103,7 @@ func UploadMeme(c *gin.Context) {
 		fail(c, http.StatusInternalServerError, 500, "读取文件失败")
 		return
 	}
-	fileURL, saveErr := storage.Save(data, ext)
+	fileURL, saveErr := storage.Save(c.Request.Context(), data, ext)
 	if saveErr != nil {
 		msg := "保存文件失败"
 		if isVercel := os.Getenv("VERCEL") == "1"; isVercel {
@@ -121,7 +122,7 @@ func UploadMeme(c *gin.Context) {
 		Size:       fileSize,
 	}
 	if err := database.DB.Create(&meme).Error; err != nil {
-		_ = storage.Delete(fileURL)
+		_ = storage.Delete(c.Request.Context(), fileURL)
 		fail(c, http.StatusInternalServerError, 500, "保存记录失败")
 		return
 	}
@@ -229,8 +230,8 @@ func UpdateMeme(c *gin.Context) {
 }
 
 // deleteMemeRecord 删除表情包记录、关联标签及存储文件
-func deleteMemeRecord(meme *models.Meme) error {
-	_ = storage.Delete(meme.FileURL)
+func deleteMemeRecord(ctx context.Context, meme *models.Meme) error {
+	_ = storage.Delete(ctx, meme.FileURL)
 	_ = database.DB.Model(meme).Association("Tags").Clear()
 	return database.DB.Delete(meme).Error
 }
@@ -249,7 +250,7 @@ func DeleteMeme(c *gin.Context) {
 		return
 	}
 
-	if err := deleteMemeRecord(&meme); err != nil {
+	if err := deleteMemeRecord(c.Request.Context(), &meme); err != nil {
 		fail(c, http.StatusInternalServerError, 500, "删除失败")
 		return
 	}

@@ -17,10 +17,21 @@ import (
 )
 
 const (
-	blobAPIVersion     = "12"
-	defaultBlobAPIURL  = "https://vercel.com/api/blob"
-	uploadsPathPrefix  = "uploads/"
+	blobAPIVersion    = "12"
+	defaultBlobAPIURL = "https://vercel.com/api/blob"
+	uploadsPathPrefix = "uploads/"
 )
+
+type oidcTokenKey struct{}
+
+// WithOIDCToken 将 Vercel 运行时注入的 OIDC token 写入 context（来自 x-vercel-oidc-token 请求头）
+func WithOIDCToken(ctx context.Context, token string) context.Context {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, oidcTokenKey{}, token)
+}
 
 type blobAuth struct {
 	token   string
@@ -44,18 +55,18 @@ func IsLocal() bool {
 	if isVercel() {
 		return false
 	}
-	return blobCredentials() == nil
+	return blobCredentials(context.Background()) == nil
 }
 
 // Save 保存图片并返回可访问 URL（本地为 /uploads/...，云端为 Blob 公网 URL）
-func Save(data []byte, ext string) (string, error) {
+func Save(ctx context.Context, data []byte, ext string) (string, error) {
 	ext = strings.ToLower(ext)
 	if !strings.HasPrefix(ext, ".") {
 		ext = "." + ext
 	}
 	filename := uploadsPathPrefix + uuid.New().String() + ext
 
-	if creds := blobCredentials(); creds != nil {
+	if creds := blobCredentials(ctx); creds != nil {
 		return saveBlob(filename, data, creds)
 	}
 	if isVercel() {
@@ -77,11 +88,14 @@ func saveLocal(filename string, data []byte) (string, error) {
 
 /**
  * blobCredentials 解析 Blob 认证，优先级与 @vercel/blob 一致：
- * 1. VERCEL_OIDC_TOKEN + BLOB_STORE_ID
+ * 1. x-vercel-oidc-token（运行时请求头）或 VERCEL_OIDC_TOKEN（构建/本地）+ BLOB_STORE_ID
  * 2. BLOB_READ_WRITE_TOKEN
  */
-func blobCredentials() *blobAuth {
-	oidc := strings.TrimSpace(os.Getenv("VERCEL_OIDC_TOKEN"))
+func blobCredentials(ctx context.Context) *blobAuth {
+	oidc := oidcTokenFromContext(ctx)
+	if oidc == "" {
+		oidc = strings.TrimSpace(os.Getenv("VERCEL_OIDC_TOKEN"))
+	}
 	if oidc != "" {
 		storeID := normalizeStoreID(strings.TrimSpace(os.Getenv("BLOB_STORE_ID")))
 		if storeID != "" {
@@ -97,6 +111,16 @@ func blobCredentials() *blobAuth {
 		}
 	}
 	return nil
+}
+
+func oidcTokenFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if v, ok := ctx.Value(oidcTokenKey{}).(string); ok {
+		return strings.TrimSpace(v)
+	}
+	return ""
 }
 
 func normalizeStoreID(storeID string) string {
@@ -158,7 +182,7 @@ func saveBlob(pathname string, data []byte, auth *blobAuth) (string, error) {
 }
 
 // Delete 删除存储中的文件（按 URL 判断本地或 Blob）
-func Delete(fileURL string) error {
+func Delete(ctx context.Context, fileURL string) error {
 	if fileURL == "" {
 		return nil
 	}
@@ -166,7 +190,7 @@ func Delete(fileURL string) error {
 		return os.Remove(filepath.Join(".", fileURL))
 	}
 
-	auth := blobCredentials()
+	auth := blobCredentials(ctx)
 	if auth == nil || !strings.Contains(fileURL, "blob.vercel-storage.com") {
 		return nil
 	}

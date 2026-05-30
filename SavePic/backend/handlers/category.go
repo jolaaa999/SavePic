@@ -91,7 +91,7 @@ func DeleteCategory(c *gin.Context) {
 	}
 
 	for i := range memes {
-		if err := deleteMemeRecord(&memes[i]); err != nil {
+		if err := deleteMemeRecord(c.Request.Context(), &memes[i]); err != nil {
 			fail(c, http.StatusInternalServerError, 500, "删除表情包失败")
 			return
 		}
