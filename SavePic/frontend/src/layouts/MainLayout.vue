@@ -13,8 +13,7 @@ import {
 } from '../api'
 import { useIsMobile } from '../composables/useBreakpoint'
 import Sidebar from '../components/Sidebar.vue'
-import SearchBar from '../components/SearchBar.vue'
-import TagFilter from '../components/TagFilter.vue'
+import HomeFilters from '../components/HomeFilters.vue'
 import UploadZone from '../components/UploadZone.vue'
 import MemeGrid from '../components/MemeGrid.vue'
 import BottomNav from '../components/BottomNav.vue'
@@ -294,17 +293,14 @@ watch([selectedCategoryId, selectedTagIds, sortOrder], () => {
       :class="{ 'pb-[calc(3.5rem+env(safe-area-inset-bottom))]': isMobile }"
     >
       <template v-if="!isMobile || mobileTab === 'home'">
-        <SearchBar
+        <HomeFilters
           v-model:query="searchQuery"
           v-model:sort="sortOrder"
+          v-model:selected-ids="selectedTagIds"
           :category-name="selectedCategory?.name"
           :total="filteredMemes.length"
-        />
-
-        <TagFilter
-          v-model:selected-ids="selectedTagIds"
           :tags="tagList"
-          :loading="loadingTags"
+          :loading-tags="loadingTags"
           @rename-tag="onRenameTag"
           @delete-tag="onDeleteTag"
         />

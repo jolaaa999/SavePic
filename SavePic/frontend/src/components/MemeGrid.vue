@@ -120,7 +120,12 @@ async function onBatchDelete() {
       @preview="previewMeme = $event"
     />
 
-    <MemePreview :meme="previewMeme" @close="previewMeme = null" />
+    <MemePreview
+      :meme="previewMeme"
+      :memes="memes"
+      @update:meme="previewMeme = $event"
+      @close="previewMeme = null"
+    />
 
     <Teleport to="body">
       <Transition name="slide-up">
