@@ -5,7 +5,7 @@ defineProps({
   loading: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['select', 'new-category', 'delete-category'])
+const emit = defineEmits(['select', 'new-category', 'delete-category', 'rename-category'])
 
 /**
  * @param {MouseEvent} e
@@ -14,6 +14,15 @@ const emit = defineEmits(['select', 'new-category', 'delete-category'])
 function onDeleteClick(e, cat) {
   e.stopPropagation()
   emit('delete-category', cat)
+}
+
+/**
+ * @param {MouseEvent} e
+ * @param {{ id: number, name: string, count?: number }} cat
+ */
+function onRenameClick(e, cat) {
+  e.stopPropagation()
+  emit('rename-category', cat)
 }
 </script>
 
@@ -68,6 +77,22 @@ function onDeleteClick(e, cat) {
           >
             {{ cat.count }}
           </span>
+          <button
+            type="button"
+            class="rounded-md p-1 text-zinc-600 opacity-0 transition-all hover:bg-white/10 hover:text-zinc-300 group-hover:opacity-100"
+            :class="selectedId === cat.id ? 'opacity-100' : ''"
+            title="重命名分类"
+            aria-label="重命名分类"
+            @click="onRenameClick($event, cat)"
+          >
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125"
+              />
+            </svg>
+          </button>
           <button
             type="button"
             class="rounded-md p-1 text-zinc-600 opacity-0 transition-all hover:bg-red-500/15 hover:text-red-400 group-hover:opacity-100"

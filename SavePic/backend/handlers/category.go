@@ -3,11 +3,13 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"savepic/backend/database"
 	"savepic/backend/models"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 type createCategoryRequest struct {
@@ -64,6 +66,55 @@ func CreateCategory(c *gin.Context) {
 	}
 	if err := database.DB.Create(&category).Error; err != nil {
 		fail(c, http.StatusInternalServerError, 500, "创建分类失败")
+		return
+	}
+
+	success(c, category)
+}
+
+type updateCategoryRequest struct {
+	Name      string `json:"name"`
+	SortOrder *int   `json:"sort_order"`
+}
+
+// UpdateCategory 修改分类名称或排序
+func UpdateCategory(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		fail(c, http.StatusBadRequest, 400, "分类 ID 无效")
+		return
+	}
+
+	var req updateCategoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, http.StatusBadRequest, 400, "参数无效")
+		return
+	}
+
+	var category models.Category
+	if err := database.DB.First(&category, id).Error; err != nil {
+		fail(c, http.StatusNotFound, 404, "分类不存在")
+		return
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if name != "" && name != category.Name {
+		var existing models.Category
+		if err := database.DB.Where("name = ? AND id != ?", name, category.ID).First(&existing).Error; err == nil {
+			fail(c, http.StatusConflict, 409, "分类名已存在")
+			return
+		} else if err != gorm.ErrRecordNotFound {
+			fail(c, http.StatusInternalServerError, 500, "查询失败")
+			return
+		}
+		category.Name = name
+	}
+	if req.SortOrder != nil {
+		category.SortOrder = *req.SortOrder
+	}
+
+	if err := database.DB.Save(&category).Error; err != nil {
+		fail(c, http.StatusInternalServerError, 500, "更新失败")
 		return
 	}
 

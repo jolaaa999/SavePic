@@ -110,7 +110,7 @@ function formatDate(iso) {
           :key="meme.id"
           class="group relative overflow-hidden rounded-xl border border-white/[0.04] bg-[var(--color-surface-raised)] transition duration-200 will-change-transform md:hover:border-[var(--color-accent)]/25 md:hover:shadow-[0_0_24px_-4px_rgba(110,231,183,0.12)]"
         >
-          <!-- 图片区：后端 width/height 占位 -->
+          <!-- 图片区：后端 width/height 占位；操作层仅覆盖图片，不遮挡下方标签 -->
           <div class="relative w-full bg-white/[0.02]" :style="aspectStyle(meme)">
             <img
               :src="resolveFileUrl(meme.file_url)"
@@ -121,6 +121,42 @@ function formatDate(iso) {
               loading="lazy"
               decoding="async"
             />
+
+            <slot name="actions" :meme="meme">
+              <div
+                class="absolute inset-0 flex flex-col items-center justify-end gap-1.5 bg-gradient-to-t from-black/80 via-black/25 to-transparent p-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:p-3"
+              >
+                <div class="flex flex-wrap justify-center gap-1.5">
+                  <button
+                    type="button"
+                    class="rounded-lg bg-white/10 px-2 py-1 text-[11px] text-zinc-200 backdrop-blur-sm md:hover:bg-white/20"
+                    @click.stop="emit('copy', meme)"
+                  >
+                    复制
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded-lg bg-white/10 px-2 py-1 text-[11px] text-zinc-200 backdrop-blur-sm md:hover:bg-white/20"
+                    @click.stop="emit('edit-tags', meme)"
+                  >
+                    标签
+                  </button>
+                  <button
+                    type="button"
+                    class="rounded-lg bg-red-500/20 px-2 py-1 text-[11px] text-red-300 backdrop-blur-sm md:hover:bg-red-500/35"
+                    @click.stop="emit('delete', meme)"
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
+            </slot>
+
+            <p
+              class="pointer-events-none absolute left-2 top-2 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-zinc-400 md:opacity-0 md:group-hover:opacity-100"
+            >
+              {{ formatDate(meme.created_at) }}
+            </p>
           </div>
 
           <!-- 标签 -->
@@ -133,43 +169,6 @@ function formatDate(iso) {
               #{{ tag.name }}
             </span>
           </div>
-
-          <!-- 操作层：支持 slot 覆盖 -->
-          <slot name="actions" :meme="meme">
-            <div
-              class="absolute inset-0 flex flex-col items-center justify-end gap-1.5 bg-gradient-to-t from-black/80 via-black/25 to-transparent p-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:p-3"
-            >
-              <div class="flex flex-wrap justify-center gap-1.5">
-                <button
-                  type="button"
-                  class="rounded-lg bg-white/10 px-2 py-1 text-[11px] text-zinc-200 backdrop-blur-sm md:hover:bg-white/20"
-                  @click.stop="emit('copy', meme)"
-                >
-                  复制
-                </button>
-                <button
-                  type="button"
-                  class="rounded-lg bg-white/10 px-2 py-1 text-[11px] text-zinc-200 backdrop-blur-sm md:hover:bg-white/20"
-                  @click.stop="emit('edit-tags', meme)"
-                >
-                  标签
-                </button>
-                <button
-                  type="button"
-                  class="rounded-lg bg-red-500/20 px-2 py-1 text-[11px] text-red-300 backdrop-blur-sm md:hover:bg-red-500/35"
-                  @click.stop="emit('delete', meme)"
-                >
-                  删除
-                </button>
-              </div>
-            </div>
-          </slot>
-
-          <p
-            class="pointer-events-none absolute left-2 top-2 rounded bg-black/50 px-1.5 py-0.5 text-[10px] text-zinc-400 md:opacity-0 md:group-hover:opacity-100"
-          >
-            {{ formatDate(meme.created_at) }}
-          </p>
         </article>
       </div>
     </div>

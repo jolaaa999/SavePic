@@ -25,6 +25,14 @@ export function deleteCategory(id) {
   return request(`/api/categories/${id}`, { method: 'DELETE' })
 }
 
+export function updateCategory(id, payload) {
+  return request(`/api/categories/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
 export function fetchTags() {
   return request('/api/tags')
 }

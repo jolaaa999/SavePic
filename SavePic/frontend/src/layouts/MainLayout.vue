@@ -7,6 +7,7 @@ import {
   fetchCategories,
   fetchMemes,
   fetchTags,
+  updateCategory,
   updateTag,
 } from '../api'
 import { useIsMobile } from '../composables/useBreakpoint'
@@ -115,6 +116,23 @@ async function onNewCategory() {
     setTimeout(() => (globalMessage.value = ''), 2000)
   } catch (e) {
     globalError.value = e.message
+  }
+}
+
+/**
+ * @param {{ id: number, name: string, count?: number }} cat
+ */
+async function onRenameCategory(cat) {
+  const name = window.prompt('请输入新的分类名称', cat.name)
+  if (!name?.trim() || name.trim() === cat.name) return
+  try {
+    await updateCategory(cat.id, { name: name.trim() })
+    await loadCategories()
+    globalMessage.value = '分类已更新'
+    setTimeout(() => (globalMessage.value = ''), 2000)
+  } catch (e) {
+    globalError.value = e.message
+    setTimeout(() => (globalError.value = ''), 3000)
   }
 }
 
@@ -231,6 +249,7 @@ watch([selectedCategoryId, selectedTagIds, sortOrder], () => {
       :loading="loadingCategories"
       @select="selectCategory"
       @new-category="onNewCategory"
+      @rename-category="onRenameCategory"
       @delete-category="onDeleteCategory"
     />
 
@@ -279,6 +298,7 @@ watch([selectedCategoryId, selectedTagIds, sortOrder], () => {
         :loading="loadingCategories"
         @select="selectCategory"
         @new-category="onNewCategory"
+        @rename-category="onRenameCategory"
         @delete-category="onDeleteCategory"
       />
 
