@@ -29,7 +29,6 @@ const hintPrimary = computed(() => {
 
 const hintSecondary = computed(() => {
   if (uploading.value) return ''
-  if (isMobile.value) return '支持 JPG · PNG · GIF · WebP'
   return '支持 JPG · PNG · GIF · WebP，可多选'
 })
 
@@ -127,7 +126,7 @@ function onFileChange(e) {
         type="file"
         class="hidden"
         accept="image/jpeg,image/png,image/gif,image/webp"
-        :multiple="!isMobile"
+        multiple
         :disabled="disabled || uploading"
         @change="onFileChange"
       />
@@ -208,7 +207,7 @@ function onFileChange(e) {
           <template v-if="uploading">上传中…</template>
           <template v-else-if="disabled">{{ hintPrimary }}</template>
           <template v-else>
-            点击 <span class="text-[var(--color-accent)]">从相册选择</span> 图片
+            点击 <span class="text-[var(--color-accent)]">从相册选择</span>（可多选）
           </template>
         </p>
         <p v-if="hintSecondary && !uploading" class="text-[11px] text-zinc-600">{{ hintSecondary }}</p>
