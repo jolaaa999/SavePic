@@ -233,6 +233,18 @@ async function onDeleteMeme(id) {
   }
 }
 
+async function onBatchDeleteMemes(ids) {
+  try {
+    await Promise.all(ids.map((id) => deleteMeme(id)))
+    await Promise.all([loadMemes(), loadCategories(), loadTags()])
+    globalMessage.value = `已删除 ${ids.length} 张`
+    setTimeout(() => (globalMessage.value = ''), 2000)
+  } catch (e) {
+    globalError.value = e.message
+    setTimeout(() => (globalError.value = ''), 3000)
+  }
+}
+
 onMounted(() => {
   loadCategories()
   loadTags()
@@ -312,6 +324,7 @@ watch([selectedCategoryId, selectedTagIds, sortOrder], () => {
           :memes="filteredMemes"
           :loading="loadingMemes"
           @delete="onDeleteMeme"
+          @batch-delete="onBatchDeleteMemes"
           @updated="loadMemes(); loadTags()"
         />
       </template>

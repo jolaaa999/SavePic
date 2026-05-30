@@ -29,6 +29,13 @@ const props = defineProps({
   gap: { type: Number, default: 12 },
   emptyText: { type: String, default: '暂无表情包' },
   emptyHint: { type: String, default: '试试调整标签筛选或上传新图片' },
+  selectable: { type: Boolean, default: false },
+  selectionMode: { type: Boolean, default: false },
+  selectedIds: { type: Array, default: () => [] },
+  /** @type {import('vue').PropType<(meme: Meme, e: TouchEvent) => void>} */
+  onMemeTouchStart: { type: Function, default: null },
+  /** @type {import('vue').PropType<() => boolean>} */
+  shouldOpenPreview: { type: Function, default: null },
 })
 
 const emit = defineEmits(['copy', 'delete', 'edit-tags', 'preview'])
@@ -52,6 +59,19 @@ function aspectStyle(meme) {
 function formatDate(iso) {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+}
+
+function isMemeSelected(id) {
+  return props.selectedIds.includes(id)
+}
+
+function onPreview(meme) {
+  if (props.shouldOpenPreview && !props.shouldOpenPreview()) return
+  emit('preview', meme)
+}
+
+function onTouchStart(meme, e) {
+  props.onMemeTouchStart?.(meme, e)
 }
 </script>
 
@@ -108,7 +128,14 @@ function formatDate(iso) {
         <article
           v-for="meme in col"
           :key="meme.id"
-          class="group relative overflow-hidden rounded-xl border border-white/[0.04] bg-[var(--color-surface-raised)] transition duration-200 will-change-transform md:hover:border-[var(--color-accent)]/25 md:hover:shadow-[0_0_24px_-4px_rgba(110,231,183,0.12)]"
+          :data-meme-id="meme.id"
+          class="group relative overflow-hidden rounded-xl border bg-[var(--color-surface-raised)] transition duration-200 will-change-transform md:hover:border-[var(--color-accent)]/25 md:hover:shadow-[0_0_24px_-4px_rgba(110,231,183,0.12)]"
+          :class="
+            isMemeSelected(meme.id)
+              ? 'border-[var(--color-accent)]/60 ring-2 ring-[var(--color-accent)]/35'
+              : 'border-white/[0.04]'
+          "
+          @touchstart.passive="selectable && onTouchStart(meme, $event)"
         >
           <!-- 图片区：后端 width/height 占位；操作层仅覆盖图片，不遮挡下方标签 -->
           <div class="relative w-full bg-white/[0.02]" :style="aspectStyle(meme)">
@@ -117,14 +144,32 @@ function formatDate(iso) {
               :alt="`meme-${meme.id}`"
               :width="meme.width || undefined"
               :height="meme.height || undefined"
-              class="absolute inset-0 h-full w-full cursor-zoom-in object-cover"
+              class="absolute inset-0 h-full w-full object-cover"
+              :class="selectionMode ? 'cursor-default' : 'cursor-zoom-in'"
               loading="lazy"
               decoding="async"
-              @click="emit('preview', meme)"
+              draggable="false"
+              @click="onPreview(meme)"
             />
+
+            <div
+              v-if="selectable && (selectionMode || isMemeSelected(meme.id))"
+              class="pointer-events-none absolute inset-0 bg-[var(--color-accent)]/10 transition-opacity"
+              :class="isMemeSelected(meme.id) ? 'opacity-100' : 'opacity-0'"
+            />
+
+            <div
+              v-if="selectable && isMemeSelected(meme.id)"
+              class="pointer-events-none absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-surface)] shadow-md"
+            >
+              <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+            </div>
 
             <slot name="actions" :meme="meme">
               <div
+                v-if="!selectionMode"
                 class="pointer-events-none absolute inset-0 flex flex-col items-center justify-end gap-1.5 bg-gradient-to-t from-black/80 via-black/25 to-transparent p-2 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:p-3"
               >
                 <div class="pointer-events-auto flex flex-wrap justify-center gap-1.5">
