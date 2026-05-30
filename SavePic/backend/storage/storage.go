@@ -16,8 +16,15 @@ import (
 
 const blobAPIVersion = "12"
 
-// IsLocal 未配置 Vercel Blob 时使用本地 uploads 目录
+func isVercel() bool {
+	return strings.TrimSpace(os.Getenv("VERCEL")) == "1"
+}
+
+// IsLocal 未配置 Vercel Blob 时使用本地 uploads 目录（Vercel 上始终为 false）
 func IsLocal() bool {
+	if isVercel() {
+		return false
+	}
 	return strings.TrimSpace(os.Getenv("BLOB_READ_WRITE_TOKEN")) == ""
 }
 
@@ -31,6 +38,9 @@ func Save(data []byte, ext string) (string, error) {
 
 	token := strings.TrimSpace(os.Getenv("BLOB_READ_WRITE_TOKEN"))
 	if token == "" {
+		if isVercel() {
+			return "", fmt.Errorf("未配置 BLOB_READ_WRITE_TOKEN，无法在 Vercel 上保存图片")
+		}
 		return saveLocal(filename, data)
 	}
 	return saveBlob(filename, data, token)
