@@ -20,6 +20,7 @@ func Setup(r *gin.Engine) {
 	{
 		api.GET("/categories", handlers.ListCategories)
 		api.POST("/categories", handlers.CreateCategory)
+		api.DELETE("/categories/:id", handlers.DeleteCategory)
 
 		api.GET("/tags", handlers.ListTags)
 

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import {
   createCategory,
+  deleteCategory,
   deleteMeme,
   fetchCategories,
   fetchMemes,
@@ -116,6 +117,34 @@ async function onNewCategory() {
   }
 }
 
+/**
+ * @param {{ id: number, name: string, count?: number }} cat
+ */
+async function onDeleteCategory(cat) {
+  const count = cat.count ?? 0
+  const hint =
+    count > 0
+      ? `确定删除分类「${cat.name}」吗？其下 ${count} 张表情包将一并删除，且无法恢复。`
+      : `确定删除分类「${cat.name}」吗？`
+  if (!confirm(hint)) return
+
+  const wasSelected = selectedCategoryId.value === cat.id
+  try {
+    await deleteCategory(cat.id)
+    await Promise.all([loadCategories(), loadTags()])
+    if (wasSelected) {
+      selectedCategoryId.value = categoryList.value[0]?.id ?? null
+      if (selectedCategoryId.value) await loadMemes()
+      else memeList.value = []
+    }
+    globalMessage.value = '分类已删除'
+    setTimeout(() => (globalMessage.value = ''), 2000)
+  } catch (e) {
+    globalError.value = e.message
+    setTimeout(() => (globalError.value = ''), 3000)
+  }
+}
+
 async function onUploaded({ count, duplicateCount }) {
   await Promise.all([loadMemes(), loadCategories(), loadTags()])
   if (duplicateCount > 0) {
@@ -184,6 +213,7 @@ watch([selectedCategoryId, selectedTagIds, sortOrder], () => {
       :loading="loadingCategories"
       @select="selectCategory"
       @new-category="onNewCategory"
+      @delete-category="onDeleteCategory"
     />
 
     <main
@@ -230,6 +260,7 @@ watch([selectedCategoryId, selectedTagIds, sortOrder], () => {
         :loading="loadingCategories"
         @select="selectCategory"
         @new-category="onNewCategory"
+        @delete-category="onDeleteCategory"
       />
 
       <div v-else-if="mobileTab === 'upload'" class="flex flex-1 flex-col overflow-y-auto px-4 py-4">

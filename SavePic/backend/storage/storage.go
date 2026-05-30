@@ -2,6 +2,7 @@ package storage
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,11 +11,29 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 )
 
-const blobAPIVersion = "12"
+const (
+	blobAPIVersion     = "12"
+	defaultBlobAPIURL  = "https://vercel.com/api/blob"
+	uploadsPathPrefix  = "uploads/"
+)
+
+type blobAuth struct {
+	token   string
+	storeID string
+}
+
+type blobPutResponse struct {
+	URL string `json:"url"`
+}
+
+type blobDeleteRequest struct {
+	URLs []string `json:"urls"`
+}
 
 func isVercel() bool {
 	return strings.TrimSpace(os.Getenv("VERCEL")) == "1"
@@ -25,7 +44,7 @@ func IsLocal() bool {
 	if isVercel() {
 		return false
 	}
-	return strings.TrimSpace(os.Getenv("BLOB_READ_WRITE_TOKEN")) == ""
+	return blobCredentials() == nil
 }
 
 // Save 保存图片并返回可访问 URL（本地为 /uploads/...，云端为 Blob 公网 URL）
@@ -34,16 +53,15 @@ func Save(data []byte, ext string) (string, error) {
 	if !strings.HasPrefix(ext, ".") {
 		ext = "." + ext
 	}
-	filename := uuid.New().String() + ext
+	filename := uploadsPathPrefix + uuid.New().String() + ext
 
-	token := strings.TrimSpace(os.Getenv("BLOB_READ_WRITE_TOKEN"))
-	if token == "" {
-		if isVercel() {
-			return "", fmt.Errorf("未配置 BLOB_READ_WRITE_TOKEN，无法在 Vercel 上保存图片")
-		}
-		return saveLocal(filename, data)
+	if creds := blobCredentials(); creds != nil {
+		return saveBlob(filename, data, creds)
 	}
-	return saveBlob(filename, data, token)
+	if isVercel() {
+		return "", fmt.Errorf("未配置 Blob 存储：请在 Vercel 项目中创建 Blob 并关联本项目（需要 BLOB_STORE_ID + VERCEL_OIDC_TOKEN，或 BLOB_READ_WRITE_TOKEN）")
+	}
+	return saveLocal(strings.TrimPrefix(filename, uploadsPathPrefix), data)
 }
 
 func saveLocal(filename string, data []byte) (string, error) {
@@ -57,31 +75,66 @@ func saveLocal(filename string, data []byte) (string, error) {
 	return "/uploads/" + filename, nil
 }
 
-func saveBlob(filename string, data []byte, token string) (string, error) {
-	storeID := parseStoreIDFromToken(token)
-	if storeID == "" {
-		return "", fmt.Errorf("invalid BLOB_READ_WRITE_TOKEN: cannot parse store id")
+/**
+ * blobCredentials 解析 Blob 认证，优先级与 @vercel/blob 一致：
+ * 1. VERCEL_OIDC_TOKEN + BLOB_STORE_ID
+ * 2. BLOB_READ_WRITE_TOKEN
+ */
+func blobCredentials() *blobAuth {
+	oidc := strings.TrimSpace(os.Getenv("VERCEL_OIDC_TOKEN"))
+	if oidc != "" {
+		storeID := normalizeStoreID(strings.TrimSpace(os.Getenv("BLOB_STORE_ID")))
+		if storeID != "" {
+			return &blobAuth{token: oidc, storeID: storeID}
+		}
 	}
 
-	apiURL := os.Getenv("VERCEL_BLOB_API_URL")
-	if strings.TrimSpace(apiURL) == "" {
-		apiURL = "https://vercel.com/api/blob"
+	rw := strings.TrimSpace(os.Getenv("BLOB_READ_WRITE_TOKEN"))
+	if rw != "" {
+		storeID := parseStoreIDFromReadWriteToken(rw)
+		if storeID != "" {
+			return &blobAuth{token: rw, storeID: storeID}
+		}
 	}
+	return nil
+}
 
-	reqURL := apiURL + "/?" + url.Values{"pathname": {filename}}.Encode()
-	req, err := http.NewRequest(http.MethodPut, reqURL, bytes.NewReader(data))
+func normalizeStoreID(storeID string) string {
+	return strings.TrimPrefix(storeID, "store_")
+}
+
+func parseStoreIDFromReadWriteToken(token string) string {
+	parts := strings.Split(token, "_")
+	if len(parts) < 4 {
+		return ""
+	}
+	return normalizeStoreID(parts[3])
+}
+
+func blobAPIBase() string {
+	if u := strings.TrimSpace(os.Getenv("VERCEL_BLOB_API_URL")); u != "" {
+		return strings.TrimRight(u, "/")
+	}
+	return defaultBlobAPIURL
+}
+
+func saveBlob(pathname string, data []byte, auth *blobAuth) (string, error) {
+	apiURL := blobAPIBase() + "/?" + url.Values{"pathname": {pathname}}.Encode()
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPut, apiURL, bytes.NewReader(data))
 	if err != nil {
 		return "", err
 	}
 
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("x-vercel-blob-store-id", storeID)
+	req.Header.Set("Authorization", "Bearer "+auth.token)
+	req.Header.Set("x-vercel-blob-store-id", auth.storeID)
 	req.Header.Set("x-api-version", blobAPIVersion)
 	req.Header.Set("x-content-length", fmt.Sprintf("%d", len(data)))
 	req.Header.Set("x-vercel-blob-access", "public")
-	req.Header.Set("x-content-type", contentTypeForExt(filepath.Ext(filename)))
-	req.Header.Set("x-add-random-suffix", "false")
-	req.Header.Set("x-allow-overwrite", "true")
+	req.Header.Set("x-content-type", contentTypeForExt(filepath.Ext(pathname)))
+	req.Header.Set("x-add-random-suffix", "0")
+	req.Header.Set("x-allow-overwrite", "1")
+	req.Header.Set("x-api-blob-request-id", fmt.Sprintf("%s:%d", auth.storeID, time.Now().UnixNano()))
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -94,9 +147,7 @@ func saveBlob(filename string, data []byte, token string) (string, error) {
 		return "", fmt.Errorf("blob upload failed (%d): %s", res.StatusCode, strings.TrimSpace(string(body)))
 	}
 
-	var out struct {
-		URL string `json:"url"`
-	}
+	var out blobPutResponse
 	if err := json.Unmarshal(body, &out); err != nil {
 		return "", err
 	}
@@ -114,30 +165,22 @@ func Delete(fileURL string) error {
 	if strings.HasPrefix(fileURL, "/uploads/") {
 		return os.Remove(filepath.Join(".", fileURL))
 	}
-	token := strings.TrimSpace(os.Getenv("BLOB_READ_WRITE_TOKEN"))
-	if token == "" || !strings.Contains(fileURL, "blob.vercel-storage.com") {
+
+	auth := blobCredentials()
+	if auth == nil || !strings.Contains(fileURL, "blob.vercel-storage.com") {
 		return nil
 	}
 
-	storeID := parseStoreIDFromToken(token)
-	apiURL := os.Getenv("VERCEL_BLOB_API_URL")
-	if strings.TrimSpace(apiURL) == "" {
-		apiURL = "https://vercel.com/api/blob"
-	}
+	apiURL := blobAPIBase() + "/delete"
+	payload, _ := json.Marshal(blobDeleteRequest{URLs: []string{fileURL}})
 
-	u, err := url.Parse(fileURL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, apiURL, bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}
-	pathname := strings.TrimPrefix(u.Path, "/")
-	reqURL := apiURL + "/?" + url.Values{"pathname": {pathname}}.Encode()
-
-	req, err := http.NewRequest(http.MethodDelete, reqURL, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("x-vercel-blob-store-id", storeID)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+auth.token)
+	req.Header.Set("x-vercel-blob-store-id", auth.storeID)
 	req.Header.Set("x-api-version", blobAPIVersion)
 
 	res, err := http.DefaultClient.Do(req)
@@ -148,22 +191,8 @@ func Delete(fileURL string) error {
 	if res.StatusCode >= 200 && res.StatusCode < 300 {
 		return nil
 	}
-	return fmt.Errorf("blob delete failed: %d", res.StatusCode)
-}
-
-func parseStoreIDFromToken(token string) string {
-	if id := strings.TrimSpace(os.Getenv("BLOB_STORE_ID")); id != "" {
-		return strings.TrimPrefix(id, "store_")
-	}
-	parts := strings.Split(token, "_")
-	if len(parts) < 4 {
-		return ""
-	}
-	storeID := parts[3]
-	if strings.HasPrefix(storeID, "store_") {
-		return strings.TrimPrefix(storeID, "store_")
-	}
-	return storeID
+	body, _ := io.ReadAll(res.Body)
+	return fmt.Errorf("blob delete failed (%d): %s", res.StatusCode, strings.TrimSpace(string(body)))
 }
 
 func contentTypeForExt(ext string) string {

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"savepic/backend/database"
 	"savepic/backend/models"
@@ -67,4 +68,39 @@ func CreateCategory(c *gin.Context) {
 	}
 
 	success(c, category)
+}
+
+// DeleteCategory 删除分类及其下所有表情包
+func DeleteCategory(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		fail(c, http.StatusBadRequest, 400, "分类 ID 无效")
+		return
+	}
+
+	var category models.Category
+	if err := database.DB.First(&category, id).Error; err != nil {
+		fail(c, http.StatusNotFound, 404, "分类不存在")
+		return
+	}
+
+	var memes []models.Meme
+	if err := database.DB.Where("category_id = ?", id).Find(&memes).Error; err != nil {
+		fail(c, http.StatusInternalServerError, 500, "查询表情包失败")
+		return
+	}
+
+	for i := range memes {
+		if err := deleteMemeRecord(&memes[i]); err != nil {
+			fail(c, http.StatusInternalServerError, 500, "删除表情包失败")
+			return
+		}
+	}
+
+	if err := database.DB.Delete(&category).Error; err != nil {
+		fail(c, http.StatusInternalServerError, 500, "删除分类失败")
+		return
+	}
+
+	success(c, nil)
 }

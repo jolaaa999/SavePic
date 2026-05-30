@@ -21,6 +21,10 @@ export function createCategory(payload) {
   })
 }
 
+export function deleteCategory(id) {
+  return request(`/api/categories/${id}`, { method: 'DELETE' })
+}
+
 export function fetchTags() {
   return request('/api/tags')
 }
