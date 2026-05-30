@@ -303,18 +303,18 @@ watch([selectedCategoryId, selectedTagIds, sortOrder], () => {
           :loading-tags="loadingTags"
           @rename-tag="onRenameTag"
           @delete-tag="onDeleteTag"
-        />
-
-        <div class="hidden shrink-0 px-6 pt-4 md:block">
-          <UploadZone
-            v-model:tags-text="uploadTagsText"
-            :category-id="selectedCategoryId"
-            :disabled="!selectedCategoryId"
-            :category-name="selectedCategory?.name"
-            @uploaded="onUploaded"
-            @error="onUploadError"
-          />
-        </div>
+        >
+          <template #upload>
+            <UploadZone
+              v-model:tags-text="uploadTagsText"
+              :category-id="selectedCategoryId"
+              :disabled="!selectedCategoryId"
+              :category-name="selectedCategory?.name"
+              @uploaded="onUploaded"
+              @error="onUploadError"
+            />
+          </template>
+        </HomeFilters>
 
         <MemeGrid
           :memes="filteredMemes"

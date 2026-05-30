@@ -11,8 +11,7 @@ const sort = defineModel('sort', { type: String, default: 'desc' })
 
 <template>
   <header
-    class="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/80 px-4 py-3 backdrop-blur-md md:sticky md:top-0 md:z-10 md:gap-3 md:px-6 md:py-4"
-    :class="{ 'sticky top-0 z-10': !hideHeader }"
+    class="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/80 px-4 py-3 backdrop-blur-md md:gap-3 md:px-6 md:py-4"
   >
     <div v-if="!hideHeader" class="min-w-0 flex-1">
       <h1 class="truncate text-base font-medium text-zinc-100">
