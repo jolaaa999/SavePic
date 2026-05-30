@@ -7,6 +7,7 @@ import {
   fetchCategories,
   fetchMemes,
   fetchTags,
+  updateTag,
 } from '../api'
 import { useIsMobile } from '../composables/useBreakpoint'
 import Sidebar from '../components/Sidebar.vue'
@@ -161,6 +162,23 @@ function onUploadError(msg) {
   setTimeout(() => (globalError.value = ''), 3000)
 }
 
+/**
+ * @param {{ id: number, name: string }} tag
+ */
+async function onRenameTag(tag) {
+  const name = window.prompt('请输入新的标签名称', tag.name)
+  if (!name?.trim() || name.trim() === tag.name) return
+  try {
+    await updateTag(tag.id, { name: name.trim() })
+    await Promise.all([loadTags(), loadMemes()])
+    globalMessage.value = '标签已更新'
+    setTimeout(() => (globalMessage.value = ''), 2000)
+  } catch (e) {
+    globalError.value = e.message
+    setTimeout(() => (globalError.value = ''), 3000)
+  }
+}
+
 async function onDeleteMeme(id) {
   try {
     await deleteMeme(id)
@@ -232,6 +250,7 @@ watch([selectedCategoryId, selectedTagIds, sortOrder], () => {
           v-model:selected-ids="selectedTagIds"
           :tags="tagList"
           :loading="loadingTags"
+          @rename-tag="onRenameTag"
         />
 
         <div class="hidden shrink-0 px-6 pt-4 md:block">

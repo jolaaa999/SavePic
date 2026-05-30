@@ -1,13 +1,22 @@
 <script setup>
+import { ref } from 'vue'
+
 const props = defineProps({
   tags: { type: Array, default: () => [] },
   selectedIds: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update:selectedIds'])
+const emit = defineEmits(['update:selectedIds', 'rename-tag'])
+
+const longPressTimer = ref(null)
+const longPressTriggered = ref(false)
 
 function toggle(id) {
+  if (longPressTriggered.value) {
+    longPressTriggered.value = false
+    return
+  }
   const set = new Set(props.selectedIds)
   if (set.has(id)) {
     set.delete(id)
@@ -19,6 +28,28 @@ function toggle(id) {
 
 function clearAll() {
   emit('update:selectedIds', [])
+}
+
+/** @param {{ id: number, name: string }} tag */
+function startLongPress(tag) {
+  clearLongPress()
+  longPressTimer.value = window.setTimeout(() => {
+    longPressTriggered.value = true
+    emit('rename-tag', tag)
+  }, 500)
+}
+
+function clearLongPress() {
+  if (longPressTimer.value) {
+    clearTimeout(longPressTimer.value)
+    longPressTimer.value = null
+  }
+}
+
+/** @param {MouseEvent} e @param {{ id: number, name: string }} tag */
+function onContextMenu(e, tag) {
+  e.preventDefault()
+  emit('rename-tag', tag)
 }
 </script>
 
@@ -51,14 +82,22 @@ function clearAll() {
             : 'bg-white/[0.04] text-zinc-500 active:bg-white/[0.08]'
         "
         @click="toggle(tag.id)"
+        @contextmenu="onContextMenu($event, tag)"
+        @touchstart.passive="startLongPress(tag)"
+        @touchend="clearLongPress"
+        @touchmove="clearLongPress"
+        @touchcancel="clearLongPress"
       >
         #{{ tag.name }}
         <span class="ml-1 opacity-60">{{ tag.count }}</span>
       </button>
     </div>
 
-    <p v-if="selectedIds.length" class="mt-1.5 text-[10px] text-zinc-600">
-      已选 {{ selectedIds.length }} 个标签（同时满足）
+    <p v-if="tags.length && selectedIds.length" class="mt-1.5 text-[10px] text-zinc-600">
+      已选 {{ selectedIds.length }} 个标签（同时满足）· 长按或右键可重命名
+    </p>
+    <p v-else-if="tags.length" class="mt-1.5 text-[10px] text-zinc-600">
+      长按或右键标签可重命名
     </p>
   </div>
 </template>

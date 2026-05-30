@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"savepic/backend/database"
@@ -37,6 +38,58 @@ func ListTags(c *gin.Context) {
 		})
 	}
 	success(c, result)
+}
+
+type updateTagRequest struct {
+	Name string `json:"name" binding:"required"`
+}
+
+// UpdateTag 修改标签名称
+func UpdateTag(c *gin.Context) {
+	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil {
+		fail(c, http.StatusBadRequest, 400, "标签 ID 无效")
+		return
+	}
+
+	var req updateTagRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		fail(c, http.StatusBadRequest, 400, "参数无效")
+		return
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		fail(c, http.StatusBadRequest, 400, "标签名不能为空")
+		return
+	}
+
+	var tag models.Tag
+	if err := database.DB.First(&tag, id).Error; err != nil {
+		fail(c, http.StatusNotFound, 404, "标签不存在")
+		return
+	}
+
+	if tag.Name == name {
+		success(c, tag)
+		return
+	}
+
+	var existing models.Tag
+	if err := database.DB.Where("name = ? AND id != ?", name, tag.ID).First(&existing).Error; err == nil {
+		fail(c, http.StatusConflict, 409, "标签名已存在")
+		return
+	} else if err != gorm.ErrRecordNotFound {
+		fail(c, http.StatusInternalServerError, 500, "查询失败")
+		return
+	}
+
+	tag.Name = name
+	if err := database.DB.Save(&tag).Error; err != nil {
+		fail(c, http.StatusInternalServerError, 500, "更新失败")
+		return
+	}
+	success(c, tag)
 }
 
 func normalizeTagNames(names []string) []string {

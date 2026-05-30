@@ -23,6 +23,7 @@ func Setup(r *gin.Engine) {
 		api.DELETE("/categories/:id", handlers.DeleteCategory)
 
 		api.GET("/tags", handlers.ListTags)
+		api.PUT("/tags/:id", handlers.UpdateTag)
 
 		api.GET("/memes", handlers.ListMemes)
 		api.GET("/categories/:id/memes", handlers.ListMemesByCategory)

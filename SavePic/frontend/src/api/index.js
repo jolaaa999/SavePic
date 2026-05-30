@@ -29,6 +29,14 @@ export function fetchTags() {
   return request('/api/tags')
 }
 
+export function updateTag(id, payload) {
+  return request(`/api/tags/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
 /** @param {{ categoryId?: number, tagIds?: number[], sort?: string }} params */
 export function fetchMemes(params = {}) {
   const q = new URLSearchParams()
